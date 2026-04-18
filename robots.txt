@@ -1,0 +1,4 @@
+User-agent: *
+Allow: /
+
+Sitemap: https://totp-no-login.vercel.app/sitemap.xml
