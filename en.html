@@ -1,0 +1,499 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>TOTP Generator – Offline</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700&family=DM+Sans:wght@400;500;700&display=swap');
+
+  :root {
+    --bg: #0e0e12;
+    --surface: #1a1a22;
+    --surface-hover: #22222e;
+    --border: #2a2a38;
+    --text: #e8e8ef;
+    --text-dim: #8888a0;
+    --accent: #6ee7b7;
+    --accent-dim: rgba(110, 231, 183, 0.1);
+    --danger: #f87171;
+    --radius: 12px;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    font-family: 'DM Sans', sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 24px;
+  }
+
+  .container {
+    width: 100%;
+    max-width: 460px;
+  }
+
+  .header {
+    text-align: center;
+    margin-bottom: 32px;
+  }
+
+  .header h1 {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 1.1rem;
+    font-weight: 700;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    color: var(--accent);
+    margin-bottom: 6px;
+  }
+
+  .header p {
+    font-size: 0.82rem;
+    color: var(--text-dim);
+  }
+
+  .badge {
+    display: inline-block;
+    background: var(--accent-dim);
+    color: var(--accent);
+    font-size: 0.7rem;
+    font-weight: 700;
+    padding: 3px 8px;
+    border-radius: 20px;
+    margin-bottom: 10px;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    font-family: 'JetBrains Mono', monospace;
+  }
+
+  .card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 24px;
+    margin-bottom: 16px;
+  }
+
+  label {
+    display: block;
+    font-size: 0.78rem;
+    font-weight: 500;
+    color: var(--text-dim);
+    margin-bottom: 8px;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+  }
+
+  input, select {
+    width: 100%;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 12px 14px;
+    color: var(--text);
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.95rem;
+    outline: none;
+    transition: border-color 0.2s;
+  }
+
+  input:focus, select:focus {
+    border-color: var(--accent);
+  }
+
+  input::placeholder {
+    color: #555568;
+  }
+
+  .row {
+    display: flex;
+    gap: 12px;
+    margin-top: 14px;
+  }
+
+  .row > div { flex: 1; }
+
+  .btn {
+    width: 100%;
+    padding: 14px;
+    border: none;
+    border-radius: 8px;
+    font-family: 'DM Sans', sans-serif;
+    font-size: 0.95rem;
+    font-weight: 700;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+
+  .btn-primary {
+    background: var(--accent);
+    color: var(--bg);
+  }
+
+  .btn-primary:hover {
+    filter: brightness(1.1);
+    transform: translateY(-1px);
+  }
+
+  .btn-primary:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+    transform: none;
+  }
+
+  /* Output */
+  .output {
+    display: none;
+    text-align: center;
+  }
+
+  .output.active { display: block; }
+
+  .code-display {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 3rem;
+    font-weight: 700;
+    letter-spacing: 12px;
+    padding: 20px 0 8px;
+    color: var(--text);
+    cursor: pointer;
+    transition: color 0.15s;
+    user-select: all;
+  }
+
+  .code-display:hover { color: var(--accent); }
+
+  .code-label {
+    font-size: 0.78rem;
+    color: var(--text-dim);
+    margin-bottom: 18px;
+  }
+
+  .timer-bar-track {
+    width: 100%;
+    height: 4px;
+    background: var(--border);
+    border-radius: 4px;
+    overflow: hidden;
+    margin-bottom: 10px;
+  }
+
+  .timer-bar {
+    height: 100%;
+    background: var(--accent);
+    border-radius: 4px;
+    transition: width 1s linear, background-color 0.5s;
+  }
+
+  .timer-bar.urgent {
+    background: var(--danger);
+  }
+
+  .timer-text {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.82rem;
+    color: var(--text-dim);
+  }
+
+  .copied-toast {
+    position: fixed;
+    bottom: 30px;
+    left: 50%;
+    transform: translateX(-50%) translateY(20px);
+    background: var(--accent);
+    color: var(--bg);
+    padding: 10px 24px;
+    border-radius: 30px;
+    font-size: 0.85rem;
+    font-weight: 700;
+    opacity: 0;
+    transition: all 0.3s;
+    pointer-events: none;
+  }
+
+  .copied-toast.show {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0);
+  }
+
+  .entries {
+    margin-top: 8px;
+  }
+
+  .entry-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 12px 14px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    margin-bottom: 8px;
+    cursor: pointer;
+    transition: background 0.15s;
+  }
+
+  .entry-item:hover { background: var(--surface-hover); }
+  .entry-item.active { border-color: var(--accent); }
+
+  .entry-name {
+    font-size: 0.88rem;
+    font-weight: 500;
+  }
+
+  .entry-remove {
+    background: none;
+    border: none;
+    color: var(--text-dim);
+    cursor: pointer;
+    font-size: 1.1rem;
+    padding: 0 4px;
+    transition: color 0.15s;
+  }
+
+  .entry-remove:hover { color: var(--danger); }
+
+  .divider {
+    border: none;
+    border-top: 1px solid var(--border);
+    margin: 20px 0;
+  }
+
+  .info {
+    text-align: center;
+    font-size: 0.75rem;
+    color: #555568;
+    margin-top: 20px;
+    line-height: 1.6;
+  }
+</style>
+</head>
+<body>
+
+<div class="container">
+  <div class="header">
+    <div class="badge">100% Offline</div>
+    <h1>TOTP Generator</h1>
+    <p>Local 2FA codes — no server, no login</p>
+  </div>
+
+  <!-- Add Key -->
+  <div class="card" id="addCard">
+    <label for="nameInput">Name / Service</label>
+    <input type="text" id="nameInput" placeholder="e.g. GitHub, Google …">
+
+    <div style="margin-top: 14px;">
+      <label for="secretInput">Secret Key (Base32)</label>
+      <input type="text" id="secretInput" placeholder="JBSWY3DPEHPK3PXP" autocomplete="off" spellcheck="false">
+    </div>
+
+    <div class="row">
+      <div>
+        <label for="digitsSelect">Digits</label>
+        <select id="digitsSelect">
+          <option value="6" selected>6</option>
+          <option value="8">8</option>
+        </select>
+      </div>
+      <div>
+        <label for="periodSelect">Interval</label>
+        <select id="periodSelect">
+          <option value="30" selected>30s</option>
+          <option value="60">60s</option>
+        </select>
+      </div>
+    </div>
+
+    <div style="margin-top: 18px;">
+      <button class="btn btn-primary" id="addBtn" onclick="addEntry()">Add</button>
+    </div>
+  </div>
+
+  <!-- Saved Entries -->
+  <div class="entries" id="entriesList"></div>
+
+  <!-- Code Output -->
+  <div class="card output" id="outputCard">
+    <div class="code-label" id="outputLabel">—</div>
+    <div class="code-display" id="codeDisplay" onclick="copyCode()">------</div>
+    <div class="timer-bar-track">
+      <div class="timer-bar" id="timerBar"></div>
+    </div>
+    <div class="timer-text" id="timerText">—</div>
+  </div>
+
+  <div class="info">
+    Everything runs locally in your browser.<br>
+    Click the code to copy.
+  </div>
+</div>
+
+<div class="copied-toast" id="toast">Copied!</div>
+
+<script>
+// ── Base32 decode ──
+function base32Decode(str) {
+  const alphabet = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ234567';
+  str = str.replace(/[\s=-]/g, '').toUpperCase();
+  let bits = '';
+  for (const c of str) {
+    const val = alphabet.indexOf(c);
+    if (val === -1) continue;
+    bits += val.toString(2).padStart(5, '0');
+  }
+  const bytes = new Uint8Array(Math.floor(bits.length / 8));
+  for (let i = 0; i < bytes.length; i++) {
+    bytes[i] = parseInt(bits.slice(i * 8, i * 8 + 8), 2);
+  }
+  return bytes;
+}
+
+// ── HMAC-SHA1 (pure JS) ──
+async function hmacSha1(keyBytes, msgBytes) {
+  const key = await crypto.subtle.importKey('raw', keyBytes, { name: 'HMAC', hash: 'SHA-1' }, false, ['sign']);
+  const sig = await crypto.subtle.sign('HMAC', key, msgBytes);
+  return new Uint8Array(sig);
+}
+
+// ── TOTP ──
+async function generateTOTP(secret, period = 30, digits = 6) {
+  const keyBytes = base32Decode(secret);
+  const epoch = Math.floor(Date.now() / 1000);
+  const counter = Math.floor(epoch / period);
+
+  const counterBytes = new Uint8Array(8);
+  let tmp = counter;
+  for (let i = 7; i >= 0; i--) {
+    counterBytes[i] = tmp & 0xff;
+    tmp = Math.floor(tmp / 256);
+  }
+
+  const hmac = await hmacSha1(keyBytes, counterBytes);
+  const offset = hmac[hmac.length - 1] & 0x0f;
+  const code = (
+    ((hmac[offset] & 0x7f) << 24) |
+    ((hmac[offset + 1] & 0xff) << 16) |
+    ((hmac[offset + 2] & 0xff) << 8) |
+    (hmac[offset + 3] & 0xff)
+  ) % Math.pow(10, digits);
+
+  return code.toString().padStart(digits, '0');
+}
+
+// ── State ──
+let entries = [];
+let activeIndex = -1;
+let tickInterval = null;
+
+function addEntry() {
+  const name = document.getElementById('nameInput').value.trim() || 'Unnamed';
+  const secret = document.getElementById('secretInput').value.trim();
+  if (!secret) { document.getElementById('secretInput').focus(); return; }
+
+  const digits = parseInt(document.getElementById('digitsSelect').value);
+  const period = parseInt(document.getElementById('periodSelect').value);
+
+  entries.push({ name, secret, digits, period });
+  activeIndex = entries.length - 1;
+
+  document.getElementById('nameInput').value = '';
+  document.getElementById('secretInput').value = '';
+
+  renderEntries();
+  startTick();
+}
+
+function selectEntry(idx) {
+  activeIndex = idx;
+  renderEntries();
+  startTick();
+}
+
+function removeEntry(idx, e) {
+  e.stopPropagation();
+  entries.splice(idx, 1);
+  if (entries.length === 0) {
+    activeIndex = -1;
+    stopTick();
+    document.getElementById('outputCard').classList.remove('active');
+  } else {
+    if (activeIndex >= entries.length) activeIndex = entries.length - 1;
+  }
+  renderEntries();
+  if (activeIndex >= 0) startTick();
+}
+
+function renderEntries() {
+  const list = document.getElementById('entriesList');
+  list.innerHTML = entries.map((e, i) => `
+    <div class="entry-item ${i === activeIndex ? 'active' : ''}" onclick="selectEntry(${i})">
+      <span class="entry-name">${esc(e.name)}</span>
+      <button class="entry-remove" onclick="removeEntry(${i}, event)">×</button>
+    </div>
+  `).join('');
+}
+
+function esc(s) {
+  const d = document.createElement('div');
+  d.textContent = s;
+  return d.innerHTML;
+}
+
+// ── Timer ──
+function startTick() {
+  if (tickInterval) clearInterval(tickInterval);
+  document.getElementById('outputCard').classList.add('active');
+  tick();
+  tickInterval = setInterval(tick, 1000);
+}
+
+function stopTick() {
+  if (tickInterval) clearInterval(tickInterval);
+  tickInterval = null;
+}
+
+async function tick() {
+  if (activeIndex < 0 || activeIndex >= entries.length) return;
+  const entry = entries[activeIndex];
+  const { secret, period, digits } = entry;
+
+  try {
+    const code = await generateTOTP(secret, period, digits);
+    document.getElementById('codeDisplay').textContent = code;
+    document.getElementById('outputLabel').textContent = entry.name;
+  } catch {
+    document.getElementById('codeDisplay').textContent = 'ERROR';
+    document.getElementById('outputLabel').textContent = 'Invalid Key';
+  }
+
+  const epoch = Math.floor(Date.now() / 1000);
+  const remaining = period - (epoch % period);
+  const pct = (remaining / period) * 100;
+
+  const bar = document.getElementById('timerBar');
+  bar.style.width = pct + '%';
+  bar.classList.toggle('urgent', remaining <= 5);
+
+  document.getElementById('timerText').textContent = remaining + 's';
+}
+
+// ── Copy ──
+function copyCode() {
+  const code = document.getElementById('codeDisplay').textContent;
+  if (!code || code === 'ERROR') return;
+  navigator.clipboard.writeText(code).then(() => {
+    const toast = document.getElementById('toast');
+    toast.classList.add('show');
+    setTimeout(() => toast.classList.remove('show'), 1500);
+  });
+}
+</script>
+
+</body>
+</html>
